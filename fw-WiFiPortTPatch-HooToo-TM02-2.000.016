@@ -1,0 +1,57 @@
+#!/bin/sh
+# constant
+CRCSUM=2856107847
+OEM=POWER7
+VERSION=2000016C
+VENDOR=HooToo
+PRODUCTLINE=WiFiPort
+SKIP=57
+TARGET_OS="linux"
+TARGET_ARCH="arm"
+DEVICE_TYPE=TM02
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+ETCPATH="/etc"
+#ETCPATH="/data/UsbDisk1/Volume1/etc"
+
+
+
+#Start telnetd. Will only give access until reboot unless modifications complete without erros
+$ETCPATH/init.d/teld.sh start
+
+
+	# Set telnetd to start at next boot
+	if [ -f $ETCPATH/init.d/teld.sh ]; then
+		echo "Creating rc.d telnet symbolic link"
+		if [ ! -L $ETCPATH/rc.d/rc1.d/S28teld ]; then
+			ln -s $ETCPATH/init.d/teld.sh $ETCPATH/rc.d/rc1.d/S28teld
+		fi
+		
+		if [ -L $ETCPATH/rc.d/rc1.d/S28teld ]; then
+			echo "Succesfully created rc.d telnet symbolic link or already exists"
+		else
+			echo "Could not create rc.d telnetd symbolic link."
+
+		fi
+	else
+		echo "Could not create rc.d telnet symbolic link. /etc/init.d/teld.sh does not exist"
+		exit 1
+	fi
+	
+
+sync
+
+# If succesful, backup current etc directory to MTD so it sticks on next reboot
+echo "Saving backup time/date to MTD"
+. /etc/init.d/vstfunc
+
+#timedate_save
+
+echo "Syncing /etc to MTD"
+/usr/sbin/etc_tools p
+echo "Synced /etc with MTD - exiting..."
+sync
+
+exit 0
+END_OF_STUB
+

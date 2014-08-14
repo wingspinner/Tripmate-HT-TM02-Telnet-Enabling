@@ -1,0 +1,184 @@
+#!/bin/sh
+# constant
+CRCSUM=3558310303
+OEM=POWER7
+VERSION=2000016C
+VENDOR=HooToo
+PRODUCTLINE=WiFiPort
+SKIP=138
+TARGET_OS="linux"
+TARGET_ARCH="arm"
+DEVICE_TYPE=TM02
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+ETCPATH="/etc"
+#ETCPATH="/data/UsbDisk1/Volume1/etc"
+DISKPATH="/data/UsbDisk1/Volume1/HooToo"
+#DISKPATH="/data/UsbDisk1/Volume1/HooToo"
+
+FWCFPT="/proc/vstinfo"
+
+upstat() {
+        if [ $1 -eq 1 ]; then
+                sed "s/^UPSTAT=[0-9]*/UPSTAT=$2/g" $FWCFPT > $FWCFPT
+        elif [ $1 -eq 2 ]; then
+                sed "s/^UPSTAT=[0-9]*/UPSTAT=0/g" $FWCFPT > $FWCFPT
+                sed "s/^ERRSTAT=[0-9]*/ERRSTAT=$2/g" $FWCFPT > $FWCFPT
+        else
+                return 1
+        fi
+
+}
+
+
+#Start telnetd. Will only give access until reboot unless modifications complete without erros
+$ETCPATH/init.d/teld.sh start
+upstat 1 1
+
+# If the USB drive backup directory doesn't exist then create it
+if [ ! -e $DISKPATH ]; then
+	mkdir -p -m 755 $DISKPATH
+	echo "Created USB drive directory - HooToo"
+fi
+upstat 1 2
+
+# If there is already a backup on this USB disk then restore the entire /etc directory
+# If not, then backup original /etc, modify the password files, and set telnetd to start
+echo "Checking for previously backuped /etc directory tar file"
+if [ -f $DISKPATH/etc.tar.gz ]; then
+	echo "Backup found. Restoring ..."
+	gunzip $DISKPATH/etc.tar.gz
+	tar xvf $DISKPATH/etc.tar -C / > /dev/null 2>&1
+	echo "Backup restored"
+	upstat 1 3
+
+else
+	echo "No backup found. Backing up /etc directory to tar file on USB drive"
+	# Backup entire /etc directory
+	tar cvf $DISKPATH/etc.tar $ETCPATH > /dev/null 2>&1
+	gzip $DISKPATH/etc.tar
+	echo "Completed /etc backup operation. Checking if successful..."
+	upstat 1 3
+	
+	# If the backup was successful then proceed with modifying the password files
+	if [ -f $DISKPATH/etc.tar.gz ]; then
+		
+		echo "Successful backup - modifying password files..."
+		# Reset root to no password
+		if [ -f $ETCPATH/passwd ]; then	
+			echo "Modifying passwd file ..."
+			rm $ETCPATH/passwdt
+			sed 's~root\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):~root:$1$yikWMdhq$LwHDqCHZ6w6u0rVqaWI3D.:\3:\4:\5:\6:~' < $ETCPATH/passwd > $ETCPATH/passwdt
+
+			if [ -f $ETCPATH/passwdt ]; then
+				cp $ETCPATH/passwdt $ETCPATH/passwd > /dev/null 2>&1
+				chmod 644 $ETCPATH/passwd
+				rm $ETCPATH/passwdt
+				echo "Done"
+			else
+				echo "Could not modify passwd file. No changes made - aborting"
+				upstat 2 3
+				exit 1
+			fi
+		fi
+
+		if [ -f $ETCPATH/passwd- ]; then	
+			echo "Modifying passwd- file ..."
+			rm $ETCPATH/passwdt-
+			sed 's~root\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):~root::\3:\4:\5:\6:~' < $ETCPATH/passwd- > $ETCPATH/passwdt-
+
+			if [ -f $ETCPATH/passwdt- ]; then
+				cp $ETCPATH/passwdt- $ETCPATH/passwd- > /dev/null 2>&1
+				chmod 644 $ETCPATH/passwd-
+				rm $ETCPATH/passwdt-
+				echo "Done"
+			else
+				echo "Could not modify passwd- file. No changes made - aborting"
+				upstat 2 3
+				exit 1
+			fi
+		fi
+
+		if [ -f $ETCPATH/shadow ]; then
+			echo "Modifying shadow file ..."
+			rm $ETCPATH/shadowt
+			sed 's~root\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):~root:$1$D0o034Sm$JzxKXnCkAAKYwyAMoABSh.:\3:\4:\5:\6:\7:\8:~' < $ETCPATH/shadow > $ETCPATH/shadowt
+
+			if [ -f $ETCPATH/shadowt ]; then
+				cp $ETCPATH/shadowt $ETCPATH/shadow > /dev/null 2>&1
+				chmod 644 $ETCPATH/shadow
+				rm $ETCPATH/shadowt
+				echo "Done"
+			else
+				echo "Could not modify shadow file. No changes made - aborting"
+				upstat 2 3
+				exit 1
+			fi
+		fi
+
+		if [ -f $ETCPATH/shadow- ]; then
+			echo "Modifying shadow- file ..."
+			rm $ETCPATH/shadowt-
+			sed 's~root\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):\([^:]*\):~root::\3:\4:\5:\6:\7:\8:~' < $ETCPATH/shadow- > $ETCPATH/shadowt-
+
+			if [ -f $ETCPATH/shadowt- ]; then
+				cp $ETCPATH/shadowt- $ETCPATH/shadow-
+				chmod 644 $ETCPATH/shadow-
+				rm $ETCPATH/shadowt-
+					echo "Done"
+			else
+				echo "Could not modify shadow- file. No changes made - aborting"
+				upstat 2 3
+				exit 1
+			fi
+		fi
+
+		echo "Successfully modified password files"
+		upstat 1 3
+
+	else
+
+		echo "Could not create /etc backup. No USB drive connected?"
+		upstat 2 3
+		exit 1
+
+	fi
+	
+	# Set telnetd to start at next boot
+	if [ -f $ETCPATH/init.d/teld.sh ]; then
+		echo "Creating rc.d telnet symbolic link"
+		if [ ! -L $ETCPATH/rc.d/rc1.d/S28teld ]; then
+			ln -s $ETCPATH/init.d/teld.sh $ETCPATH/rc.d/rc1.d/S28teld
+		fi
+		
+		if [ -L $ETCPATH/rc.d/rc1.d/S28teld ]; then
+			echo "Succesfully created rc.d telnet symbolic link or already exists"
+			upstat 1 4
+		else
+			echo "Could not create rc.d telnetd symbolic link."
+			upstat 2 4
+
+		fi
+	else
+		echo "Could not create rc.d telnet symbolic link. /etc/init.d/teld.sh does not exist"
+	fi
+	
+fi
+
+sync
+
+# If succesful, backup current etc directory to MTD so it sticks on next reboot
+echo "Saving backup time/date to MTD"
+. /etc/init.d/vstfunc
+
+#timedate_save
+
+echo "Syncing /etc to MTD"
+/usr/sbin/etc_tools p
+echo "Synced /etc with MTD - exiting..."
+sync
+upstat 1 5
+
+exit 0
+END_OF_STUB
+
