@@ -10,13 +10,12 @@ fw-WiFiPortTPatch-HooToo-TM02-2.000.016 only enables the telnet server
 fw-WiFiPortPatch-HooToo-TM02-2.000.016 enables the telnet server and removes the root password
 
 INSTRUCTIONS
-============
 
 Pretty simple.... simply use the factory method of upgrading the firmware using one of these images as the target.
 
 
 NOTES
-============
+
 
 These upgrade images don't actually load anything into the TM02 - i.e. the firmware is not upgraded. They mearly modify the appropriate files in /etc to enable telnet and change the root password and then save the changes permanently so they won't disappear on the next reboot.
 
